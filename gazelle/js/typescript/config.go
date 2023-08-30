@@ -38,10 +38,17 @@ func (tc *TsWorkspace) AddTsConfigFile(root, rel, fileName string) error {
 }
 
 func (tc *TsWorkspace) getConfig(f string) (string, *TsConfig) {
-	dir := f
+	return tc.getConfigForPath(f, false)
+}
 
-	for dir = f; dir != ""; {
+func (tc *TsWorkspace) getConfigForPath(f string, respectFullPath bool) (string, *TsConfig) {
+	if respectFullPath {
+		f = path.Join(f, "REMOVED")
+	}
+
+	for dir := f; dir != ""; {
 		dir = path.Dir(dir)
+
 		if dir == "." {
 			dir = ""
 		}
@@ -76,4 +83,9 @@ func (tc *TsWorkspace) ExpandPaths(from, f string) []string {
 	}
 
 	return c.ExpandPaths(from, f)
+}
+
+func (tc *TsWorkspace) GetNearestTsConfigForPath(path string) (string, *TsConfig) {
+	p, c := tc.getConfigForPath(path, true)
+	return p, c
 }

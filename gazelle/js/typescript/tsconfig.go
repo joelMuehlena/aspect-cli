@@ -48,6 +48,8 @@ type TsConfig struct {
 	VirtualRootDirs []string
 
 	Paths *TsConfigPaths
+
+	Raw tsConfigJSON
 }
 
 type TsConfigPaths struct {
@@ -157,6 +159,7 @@ func parseTsConfigJSON(cm *TsConfigMap, root, configDir string, tsconfigContent 
 		BaseUrl:         BaseUrl,
 		Paths:           Paths,
 		VirtualRootDirs: VirtualRootDirs,
+		Raw: c,
 	}
 
 	return &config, nil

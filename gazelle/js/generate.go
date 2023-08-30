@@ -252,11 +252,15 @@ func (ts *typeScriptLang) addProjectRule(cfg *JsGazelleConfig, args language.Gen
 	}
 
 	tsProject := rule.NewRule(TsProjectKind, targetName)
-	tsProject.SetAttr("srcs", sourceFiles.Values())
 
 	if isTestRule {
 		tsProject.SetAttr("testonly", true)
 	}
+
+	BazelLog.Debugf("Project: %v", tsProject.AttrKeys())
+	tsConfigPath, tsConfig := ts.tsconfig.GetNearestTsConfigForPath(cfg.rel)
+	fmt.Printf("tsConfigPath: %v\n", tsConfigPath)
+	fmt.Printf("tsConfig: %v\n", tsConfig.Raw)
 
 	result.Gen = append(result.Gen, tsProject)
 	result.Imports = append(result.Imports, imports)

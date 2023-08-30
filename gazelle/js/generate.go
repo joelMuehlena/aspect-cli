@@ -14,6 +14,7 @@ import (
 	. "aspect.build/cli/gazelle/common/log"
 	parser "aspect.build/cli/gazelle/js/parser/treesitter"
 	pnpm "aspect.build/cli/gazelle/js/pnpm"
+	"aspect.build/cli/gazelle/js/typescript"
 	"github.com/bazelbuild/bazel-gazelle/label"
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/resolve"
@@ -256,18 +257,82 @@ func (ts *typeScriptLang) addProjectRule(cfg *JsGazelleConfig, args language.Gen
 	if isTestRule {
 		tsProject.SetAttr("testonly", true)
 	}
+	_, tsConfig := ts.tsconfig.GetNearestTsConfigForPath(cfg.rel)
 
-	BazelLog.Debugf("Project: %v", tsProject.AttrKeys())
-	tsConfigPath, tsConfig := ts.tsconfig.GetNearestTsConfigForPath(cfg.rel)
-	fmt.Printf("tsConfigPath: %v\n", tsConfigPath)
-	fmt.Printf("tsConfig: %v\n", tsConfig.Raw)
+	projectTsConfigValues, err := tsConfig.GetTsProjectRuleTsConfigValues()
+	if err != nil {
+		return nil, err
+	}
+
+	ts.addTsConfigFields(tsProject, projectTsConfigValues)
 
 	result.Gen = append(result.Gen, tsProject)
 	result.Imports = append(result.Imports, imports)
 
+	BazelLog.Debugf("tsProject.AttrKeys(): %v\n", tsProject.AttrKeys())
 	BazelLog.Infof("add rule '%s' '%s:%s'", tsProject.Kind(), args.Rel, tsProject.Name())
 
 	return tsProject, nil
+}
+
+func (ts *typeScriptLang) addTsConfigFields(tsProject *rule.Rule, values typescript.TsConfigJSON) {
+	co := &values.CompilerOptions
+
+	if co.AllowJS != nil {
+		tsProject.SetAttr("allow_js", *co.AllowJS)
+	}
+
+	if co.Declaration != nil {
+		tsProject.SetAttr("declarstion", *co.Declaration)
+	}
+
+	if co.SourceMap != nil {
+		tsProject.SetAttr("source_map", *co.SourceMap)
+	}
+
+	if co.DeclarationMap != nil {
+		tsProject.SetAttr("declaration_map", *co.DeclarationMap)
+	}
+
+	if co.ResolveJsonModule != nil {
+		tsProject.SetAttr("resolve_json_module", *co.ResolveJsonModule)
+	}
+
+	if co.PreserveJSX != nil {
+		tsProject.SetAttr("preserve_jsx", *co.PreserveJSX)
+	}
+
+	if co.Composite != nil {
+		tsProject.SetAttr("composite", *co.Composite)
+	}
+
+	if co.Incremental != nil {
+		tsProject.SetAttr("incremental", *co.Incremental)
+	}
+
+	if co.EmitDeclarationOnly != nil {
+		tsProject.SetAttr("emit_declaration_only", *co.EmitDeclarationOnly)
+	}
+
+	if co.DeclarationDir != nil {
+		tsProject.SetAttr("declaration_dir", *co.DeclarationDir)
+	}
+
+	if co.OutDir != nil {
+		tsProject.SetAttr("out_dir", *co.OutDir)
+	}
+
+	if co.RootDir != nil {
+		tsProject.SetAttr("root_dir", *co.RootDir)
+	}
+
+	// Resolve tsconfig label
+	tsProject.SetAttr("tsconfig", "")
+
+	// Resolve extends label
+	if values.Extends != "" {
+		tsProject.SetAttr("extends", "")
+	}
 }
 
 type parseResult struct {

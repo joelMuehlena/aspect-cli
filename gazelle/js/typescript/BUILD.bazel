@@ -10,6 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//gazelle/common/log",
+        "@cat_dario_mergo//:mergo",
         "@com_github_msolo_jsonr//:jsonr",
     ],
 )

@@ -5,6 +5,7 @@
     "paths": {
       "overwritten/*": ["../lib/*"],
       "star/*": ["../lib/c/first/*"]
-    }
+    },
+    "resolveJsonModule": true
   }
 }

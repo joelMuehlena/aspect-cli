@@ -17,6 +17,7 @@
 package typescript
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"path/filepath"
@@ -24,19 +25,31 @@ import (
 	"strings"
 
 	. "aspect.build/cli/gazelle/common/log"
+	"dario.cat/mergo"
 	"github.com/msolo/jsonr"
 )
 
-type tsCompilerOptionsJSON struct {
-	RootDir  *string              `json:"rootDir"`
-	RootDirs *[]string            `json:"rootDirs"`
-	BaseUrl  *string              `json:"baseUrl"`
-	Paths    *map[string][]string `json:"paths"`
+type TsCompilerOptionsJSON struct {
+	RootDirs            *[]string            `json:"rootDirs"`
+	BaseUrl             *string              `json:"baseUrl"`
+	Paths               *map[string][]string `json:"paths"`
+	AllowJS             *string              `json:"allowJs"`
+	Declaration         *bool                `json:"declaration"`
+	SourceMap           *bool                `json:"sourceMap"`
+	DeclarationMap      *bool                `json:"declarationMap"`
+	ResolveJsonModule   *bool                `json:"resolveJsonModule"`
+	PreserveJSX         *bool                `json:"preserveJsx"`
+	Composite           *bool                `json:"composite"`
+	Incremental         *bool                `json:"incremental"`
+	EmitDeclarationOnly *bool                `json:"emitDeclarationOnly"`
+	DeclarationDir      *string              `json:"declarationDir"`
+	OutDir              *string              `json:"outDir"`
+	RootDir             *string              `json:"rootDir"`
 }
 
-type tsConfigJSON struct {
+type TsConfigJSON struct {
 	Extends         string                `json:"extends"`
-	CompilerOptions tsCompilerOptionsJSON `json:"compilerOptions"`
+	CompilerOptions TsCompilerOptionsJSON `json:"compilerOptions"`
 }
 
 type TsConfig struct {
@@ -49,7 +62,8 @@ type TsConfig struct {
 
 	Paths *TsConfigPaths
 
-	Raw tsConfigJSON
+	Base *TsConfig
+	Raw  TsConfigJSON
 }
 
 type TsConfigPaths struct {
@@ -88,12 +102,13 @@ func parseTsConfigJSONFile(cm *TsConfigMap, root, dir, tsconfig string) (*TsConf
 }
 
 func parseTsConfigJSON(cm *TsConfigMap, root, configDir string, tsconfigContent []byte) (*TsConfig, error) {
-	var c tsConfigJSON
+	var c TsConfigJSON
 	if err := jsonr.Unmarshal(tsconfigContent, &c); err != nil {
 		return nil, err
 	}
 
 	var baseConfig *TsConfig
+	// TODO merge all configs and the nearest has the highest priority
 	if c.Extends != "" {
 		base, err := parseTsConfigJSONFile(cm, root, path.Join(configDir, path.Dir(c.Extends)), path.Base(c.Extends))
 		if err != nil {
@@ -159,10 +174,48 @@ func parseTsConfigJSON(cm *TsConfigMap, root, configDir string, tsconfigContent 
 		BaseUrl:         BaseUrl,
 		Paths:           Paths,
 		VirtualRootDirs: VirtualRootDirs,
-		Raw: c,
+		Base:            baseConfig,
+		Raw:             c,
 	}
 
 	return &config, nil
+}
+
+// Merges all bases. So that the values can be passed to the ts_project rule
+func (c *TsConfig) GetTsProjectRuleTsConfigValues() (TsConfigJSON, error) {
+	bases := baseLinkedListToArray(c)
+
+	if len(bases) == 0 {
+		// This case should never happen. But theoretically can if &c is nil
+		return TsConfigJSON{}, fmt.Errorf("unexpected length of zero for tsconfig bases")
+	}else if len(bases) == 1 {
+		return c.Raw, nil
+	}
+
+	for i := len(bases) - 1; i > 0; i-- {
+		err := mergo.Merge(&bases[i-1].Raw, &bases[i].Raw)
+		if err != nil {
+			return TsConfigJSON{}, fmt.Errorf("failed to merge tsconfig bases: %w", err)
+		}
+	}
+	
+	return bases[0].Raw, nil
+}
+
+// Converts a linked list of bases in a TsConfig to an array which is easier to work on.
+// The first element is the passed config followed by all bases in ascending order.
+func baseLinkedListToArray(config *TsConfig) []*TsConfig {
+	array  := make([]*TsConfig, 0)
+
+	if config == nil {
+		return array
+	}
+
+	for current := config; current != nil; current = current.Base {
+		array = append(array, current)
+	}
+
+	return array
 }
 
 // Returns the path from the project base to the active tsconfig.json file
